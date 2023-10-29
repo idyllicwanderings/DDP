@@ -17,10 +17,24 @@ u32 term_mult(u32 *x, u32 y) { // do inline of this function
     return x[0] * y;
 }
 
+
+// a and b size can be different!
+uint8_t mp_compare1(uint32_t *a, uint32_t *b, uint32_t size, bool carry_a) {
+	if (carry_a) return 1;
+	uint32_t i = size -1;
+    while (i >= 0) {
+        if (a[i] > b[i]) return 1;
+        else if (a[i] < b[i]) return 0;
+        else i--;
+    }
+    return 1;
+}
+
+
 //TODO: modify n to a 32-bit while a is a 33-bit results!
 // TODO: verify its correctness
 void sub_condition(u32 *a, u32 *n,u32 size) { 
-    if (mp_compare(a,n,size,false)) {
+    if (mp_compare1(a,n,size,false)) {
         mp_sub_same(a,n,size);
     }
 }
@@ -95,7 +109,7 @@ void montMul(uint32_t *a, uint32_t *b, uint32_t *n, uint32_t *n_prime,\
 
     sub_condition(t,n,size);
 
-    for (u32 i = 0; i <= size; i++) {
+    for (u32 i = 0; i < size; i++) {
         res[i] = t[i];
     }
 

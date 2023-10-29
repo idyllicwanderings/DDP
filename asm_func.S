@@ -146,7 +146,7 @@ init:
 	stmia r0!, {r2-r10}
 	stmia r0!, {r2-r10}
 	stmia r0!, {r2-r10}
-	stmia r0, {r2-r8}	// 34 words, TODO: how to load
+	stmia r0, {r2-r8}	// 34 words
 end_init:
 bx lr
 
@@ -166,78 +166,80 @@ bx lr
 
 
 
-//TODO: loop unrolling
-
-
-
 mult:
 	// default input: r0: a0, r1: b0, r2:t, r3:size
 	
 	// r4: i, r5: carry, r10: t[size]_addr
 	// r0,r1 stored in stack
+	
 
 	push {r11,r12,r14}
 				
 	mov r4,#0					// load i
 	add r10,r2,r3,lsl #2		// load t[size]_addr
 
+	ldmia r10, {r6-r7}			// load t[size],t[size+1]
+	push {r6-r7}
 	
 	loop_mult:
 		
 	
 		// LOOP MULT
 		// temp: r6: a[j]_addr, r7:b[i]_value, r8:t[i+j]_addr ,r9:a[size-i]_addr
-		mov r5,#0				// carry = 0;
+		mov r5,#0						// carry = 0;
 
-		mov r6, r0              // load a[j]_addr
-		add r8, r2,r4,lsl #2	// load t[i+j]_addr
+		mov r6, r0              		// load a[j]_addr
+		add r8, r2,r4,lsl #2			// load t[i+j]_addr
 		
 
-		add r9,r1,r4,lsl #2		// load b[i]_addr
-		ldr r7,[r9]				// load b[i]_value!
+		add r9,r1,r4,lsl #2				// load b[i]_addr
+		ldr r7,[r9]						// load b[i]_value!
 
-		//sub r9,r3,#1			// size -1
-		sub r9,r3,r4			// size - i
-		add r9,r0,r9,lsl #2		// a[size-i]_addr
+		sub r9,r3,r4					// size - i
+		add r9,r0,r9,lsl #2				// a[size-i]_addr
 		
 
 		loop_j:
 
 			// sum = t[i + j] +  (u64)a[j] * b[i] + carry; 
-			ldr r12, [r6],#4				// load a[j]
+			ldr r12, [r6],#4			// load a[j]
 
 			// CAUTION: p{cond}{S} RdLo, RdHi, Rm, Rs!!!
 			// r11: sum
 			mov r14,#0					// clear the sum!
 			umlal r5,r14,r12,r7			// a[j] * b[i] + carry(low_addr)
 			ldr r12,[r8]				// load t[i+j]
-			// TODO: nop here	
-			
+
 			adds r11,r5,r12				// + y[i+j]
 			adc r5,r14,#0				// CARRY bits
 			
 			// CAUTION: cmp and adds both set the carry flags!
-			// TODO: can i switch the order of cmp and adc?
 			cmp r6,r9					
 			str r11, [r8],#4 			//save the t[i+j] back
 
 			blt loop_j
-
-		ldmia r10, {r6-r7}			// load t[size], t[size+1]
 		
-		adds r6,r6,r5				//	sum = t[size] + carry;
+		pop {r6-r7}
+		//ldmia r10, {r6-r7}				// load t[size], t[size+1]
+		
+		adds r6,r6,r5					//	sum = t[size] + carry;
+
+
 		mov r5,#0
-		adc r5,r5,#0				// carry
-		//TODO: try move from cpsr?
+		adc r5,r5,#0					// carry
 		add r7,r7,r5
-		stmia r10, {r6,r7}
+		
 
 		
 		add r4, r4, #1				//do_while loop judgement
 		cmp r4, r3
+		
+		push {r6-r7}
+		
 		blt  loop_mult
 
-pop {r11,r12,r14}
+stmia r10, {r6,r7}
+pop {r6,r7,r11,r12,r14}
 bx lr
 
 .endfunc
@@ -256,39 +258,6 @@ bx lr
 .global reduct
 .func reduct,reduct
 .type reduct, %function
-
-
-//    for (int i = 0; i < size; i++) {
-//
-//
-//        u32 m = term_mult(n_prime,t[0]);  // inline for term_mult
-//        sum = t[0] + (u64)m * n[0];
-//        carry = (sum >> 32);
-//
-//        for (int j = 1; j < size; j++) {
-//            sum = t[j] + (u64)m * n[j] + carry;
-//            carry = sum >> 32;
-//            t[j - 1] = sum;
-//        }
-//
-//        sum = (u64)t[size] + carry;
-//        carry = sum >> 32;
-//        t[size - 1] = sum;
-//        t[size] = t[size + 1] + carry;
-//        t[size + 1]  = 0;
-//
-//        for (int j = i + 1; j < size; j++) {
-//            sum = t[size - 1] + (u64)b[j] * a[size - j + i];
-//            carry = sum >> 32;
-//
-//            t[size - 1] = sum;
-//            sum = (u64)t[size] + carry;
-//            carry = sum >> 32;
-//            t[size] = sum;
-//            t[size + 1] += carry;
-//        }
-//
-//    }
 
 
 reduct:
@@ -339,7 +308,6 @@ loop_reduct:
 		mov r3,#0				// clear r3 for umlal r8,r3,r14,r9
 		umlal r8,r3,r14,r9		// m * n[j] + carry
 
-		// TODO: still need a nop
 		
 		adds r14,r8,r12			// + t[j]
 		adc r8,r3,#0			// (carry bits)
@@ -350,13 +318,6 @@ loop_reduct:
 
 
 	end_j1:
-//        sum = (u64)t[size] + carry;
-//        carry = sum >> 32;
-//        t[size - 1] = sum;
-//        t[size] = t[size + 1] + carry;
-//        t[size + 1]  = 0;
-//
-
 
 		//temp: save r[7], which should now be t[size]_addr
 		ldr r10, [r7],#4 		// load t[size]
@@ -364,7 +325,7 @@ loop_reduct:
 
 		adds r10,r10,r8			// r10(sum) = t[size] + carry;
 		
-		// TODO: obtain from cspr flag?
+
 		mov r14,#0				// r14 = 0;
 		adc r8,r14,#0			// carry = (carry bits)
 		
@@ -372,11 +333,7 @@ loop_reduct:
 	
 		
 		stmia r7,{r10,r12,r14}	// store t[size - 1], t[size] ,t[size + 1]
-		//TODO: bugs in the order?
 		
-		// add r7,r7,#4
-
-
 
 
 	push {r2}						// r3 already on the stack!
@@ -385,9 +342,9 @@ loop_reduct:
 	
 	//Caution: skip loop if j = i+1 >= size!
 	cmp r10,r5
+	add r11,r1,r10,lsl #2			// r11: load b[j]_addr
 	bge next_reduc
 		
-	add r11,r1,r10,lsl #2			// r11: load b[j]_addr
 
 	sub r10,r5,#1					// size - 1
 	add r7,r4,r10,lsl #2			// r7: t[size -1]_addr
@@ -405,24 +362,10 @@ loop_reduct:
 	//		 r11: b[j]_addr, r3: t[s-1],r7: t[s], r9:t[s+1]
 
 
-// for (int j = i + 1; j < size; j++) {
-//            sum = t[size - 1] + (u64)b[j] * a[size - j + i];
-//            carry = sum >> 32;
-//
-//            t[size - 1] = sum;
-//            sum = (u64)t[size] + carry;
-//            carry = sum >> 32;
-//            t[size] = sum;
-//            t[size + 1] += carry;
-//        }
-//
-
-
 	loop_j2:
 		ldr r12,[r11],#4			//l oad b[j], j+1
 		ldr r14,[r10],#-4			// load a[size+i-j]_addr, index -1
 
-		// TODO: nop
 		mov r8,#0
 		umlal r3,r8,r12,r14			// b[j] * a[size - j + i] + t[size - 1]
 
@@ -440,10 +383,12 @@ loop_reduct:
 		stmia r10, {r3,r7,r9}		//store the t[s-1], t[s], t[s+1]
 
 	next_reduc:
-	pop {r2}					//restore the r2 only, r3 will be retrived by next loop of loop_reduct
+	
 	
 	add r6,r6,#1   					// i ++;
+	
 	cmp r6,r5
+	pop {r2}					//restore the r2 only, r3 will be retrived by next loop of loop_reduct
 	blt loop_reduct					// do while {i < size}
 
 pop {r3,r11,r12,r14}
@@ -468,18 +413,8 @@ bx lr
 .func condsub,condsub
 .type condsub, %function
 
-//TODO: modify n to a 32-bit while a is a 33-bit results!
-// TODO: how to deal with n[size] = 0 
-// independently judge n[size] with a[size]
 
 
-//if (a[size] > 0) {
-//		mp_sub_same(a,n,size+1);
-//		return;
-//	}
-//    if (mp_compare(a,n,size,false)) {
-//        mp_sub_same(a,n,size);
-//    }
     
 condsub:
 	// r0: t, r1:n , r2: size

@@ -10,6 +10,7 @@
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+
 // a and b size can be different!
 uint8_t mp_compare(uint32_t *a, uint32_t *b, uint32_t size, bool carry_a) {
 	if (carry_a) return 1;
@@ -21,6 +22,7 @@ uint8_t mp_compare(uint32_t *a, uint32_t *b, uint32_t size, bool carry_a) {
     }
     return 1;
 }
+
 
 void mp_duplicate(uint32_t *frm, uint32_t *to,uint32_t size) {
 	 for (uint32_t i = 0; i < size; i++) {
