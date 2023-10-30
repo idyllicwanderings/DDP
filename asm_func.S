@@ -172,8 +172,11 @@ mult:
 	// r4: i, r5: carry, r10: t[size]_addr
 	// r0,r1 stored in stack
 	
-
 	push {r11,r12,r14}
+
+	// initialization
+
+
 				
 	mov r4,#0					// load i
 	add r10,r2,r3,lsl #2		// load t[size]_addr
@@ -319,37 +322,51 @@ loop_reduct:
 
 	end_j1:
 
+//        sum = (u64)t[size] + carry;
+//        carry = sum >> 32;
+//        t[size - 1] = sum;
+//        t[size] = t[size + 1] + carry;
+//        t[size + 1]  = 0;
+//
 		//temp: save r[7], which should now be t[size]_addr
-		ldr r10, [r7],#4 		// load t[size]
-		ldr r12, [r7],#-8 		// load t[size+1]
+		ldmia r7, {r7,r9}
 
-		adds r10,r10,r8			// r10(sum) = t[size] + carry;
+		//ldr r10, [r7],#4 		// load t[size]
+		//ldr r12, [r7],#-8 		// load t[size+1]
+
+		adds r3,r7,r8			// r10(sum) = t[size] + carry;
 		
 
 		mov r14,#0				// r14 = 0;
 		adc r8,r14,#0			// carry = (carry bits)
 		
-		add r12,r12,r8			// r12 = t[size + 1] + carry;
+		add r7,r9,r8			// r12 = t[size + 1] + carry;
+		mov r9,#0
 	
-		
-		stmia r7,{r10,r12,r14}	// store t[size - 1], t[size] ,t[size + 1]
-		
 
 
 	push {r2}						// r3 already on the stack!
 
 	add r10,r6,#1					// j= i + 1
 	
-	//Caution: skip loop if j = i+1 >= size!
+	//Caution: skip loop if j = i+1 >= size! j < size
 	cmp r10,r5
 	add r11,r1,r10,lsl #2			// r11: load b[j]_addr
-	bge next_reduc
-		
+	blt skip_store
+
+	store_two_words:
+		sub r10,r5,#1					// size - 1
+		add r11,r4,r10,lsl #2			// r7: t[size -1]_addr
+		stmia r11,{r3,r7,r9}	// store t[size - 1], t[size] ,t[size + 1]
+
+		b next_reduc
+
+	skip_store:
 
 	sub r10,r5,#1					// size - 1
-	add r7,r4,r10,lsl #2			// r7: t[size -1]_addr
+	// add r7,r4,r10,lsl #2			// r7: t[size -1]_addr
 	
-	ldmia r7,{r3,r7,r9}				// load t[i-1],t[i],t[i+1]
+	//ldmia r7,{r3,r7,r9}				// load t[i-1],t[i],t[i+1]
 
 
 	add r2,r1,r10,lsl #2			// r2: load b[size-1]_addr    MODIFIED!
@@ -381,6 +398,7 @@ loop_reduct:
 		add r10,r4,r10,lsl #2		// t[size-1]_addr
 
 		stmia r10, {r3,r7,r9}		//store the t[s-1], t[s], t[s+1]
+
 
 	next_reduc:
 	
