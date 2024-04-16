@@ -1,1 +1,1 @@
-# DDP
+Software and hardware acceleration of RSA cryptosystem.
